@@ -100,3 +100,16 @@
  *    Result: acct_barfoo owes $20.00, acct_foobar owes $39.99.
  *
  */
+
+
+class StripeCapital {
+  /**
+   * CREATE_LOAN
+ * @param {string} merchant_id
+ * @param {string} loan_id
+ * @param {number} amount
+ */
+  createLoan(merchant_id, loan_id, amount) {
+
+  }
+}
