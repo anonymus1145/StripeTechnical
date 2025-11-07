@@ -104,46 +104,105 @@
 
 class StripeCapital {
   /**
-   * CREATE_LOAN
  * @param {string} merchant_id
  * @param {string} loan_id
  * @param {number} amount
+ * @param {boolean} _loan
  */
-  CREATE_LOAN(merchant_id, loan_id, amount) {
+
+  constructor(merchant_id, loan_id, amount, loan = false) {
+    this.merchant_id = merchant_id,
+      this.loan_id = loan_id,
+      this.amount = amount,
+      this.loan = loan
+  }
+
+  // Method for parameters check
+  checkParams(merchant_id, loan_id, amount) {
+    if (!merchant_id || merchant_id.length === 0 || typeof merchant_id !== 'string') throw new Error("Invalid merchant_id");
+    if (!loan_id || loan_id.length === 0 || typeof loan_id !== 'string') throw new Error("Invalid loan_id");
+    if (!amount || amount <= 0 || typeof amount !== 'number') throw new Error("Invalid amount");
+  }
+
+  // Getter to retrive the info
+  get data() {
+    return {
+      merchant_id: this.merchant_id,
+      loan_id: this.loan_id,
+      amount: this.amount,
+      loan: this.loan
+    }
+  }
+
+  // Method to create a loan
+  createLoan() {
+    this.checkParams(this.merchant_id, this.loan_id, this.amount);
+    return this.loan = true;
+  }
+
+  // Method to pay the loan
+  payLoan(merchant_id, loan_id, amount) {
+    this.checkParams(merchant_id, loan_id, amount);
+
+    if (merchant_id !== this.merchant_id || loan_id !== this.loan_id) {
+      throw new Error(`The loan for ${merchant_id} is not available`);
+    }
+
+    this.amount = this.amount - amount;
+
+    if (this.amount > 0) {
+      console.info(`Loan ${loan_id} was decreased till ${this.amount}`);
+      return;
+    }
+
+    console.info(`Loan ${loan_id} was paid and closed`);
+    this.loan = false;
+  }
+
+  // Method to increase the loan
+  INCREASE_LOAN(merchant_id, loan_id, amount) {
     if (!merchant_id || merchant_id.length === 0 || typeof merchant_id !== 'string') return {}
     if (!loan_id || loan_id.length === 0 || typeof loan_id !== 'string') return {}
     if (!amount || amount <= 0 || typeof amount !== 'number') return {}
 
-    const loan = {
+    const increaseLoan = {
       merchant_id,
       loan_id,
       amount
     }
 
-    return loan;
+    return increaseLoan;
   }
 
-  PAY_LOAN(merchant_id, loan_id, amount) {
-    if (!merchant_id || merchant_id.length === 0 || typeof merchant_id !== 'string') return false
-    if (!loan_id || loan_id.length === 0 || typeof loan_id !== 'string') return false
-    if (!amount || amount <= 0 || typeof amount !== 'number') return false
-
-    const payed_loan = {
-      merchant_id,
-      loan_id,
-      amount
-    }
-
-    return true;
+  TRANSACTION_PROCESSED(merchant_id, loan_id, amount, repayment_percentage) {
+    if (!merchant_id || merchant_id.length === 0 || typeof merchant_id !== 'string') return {}
+    if (!loan_id || loan_id.length === 0 || typeof loan_id !== 'string') return {}
+    if (!amount || amount <= 0 || typeof amount !== 'number') return {}
+    if (!repayment_percentage || typeof repayment_percentage !== 'number' || repayment_percentage <= 1 || repayment_percentage >= 100) return {}
   }
-
-
 }
 /*
-PAY_LOAN: Merchants pays off their loans on a one-time basis.
- * Fields
- *    - merchant_id: The ID of the merchant. (String; non-empty)
- *    - loan_id: The ID of loan to pay off. (String; non-empty)
- *    - amount: The amount given back to Stripe. (Integer; x >= 0)
- * Ex: PAY_LOAN: merchant1, loan1, 1000
+* Example 0 (manual repayment):
+ *    CREATE_LOAN: acct_foobar,loan1,5000
+ *    PAY_LOAN: acct_foobar,loan,1000
+ * Expected Output:
+ *    acct_foobar,4000
+ * Explanation:
+ *    1. The merchant acct_foobar creates a loan ("loan1") for $50.00.
+ *    2. The merchant pays down $10.00 of the loan.
+ *Result: The merchant owes Stripe $40.00.
+*/
+const firstClientLoan = new StripeCapital("acct_foobar", "loan1", 5000);
+firstClientLoan.createLoan();
+firstClientLoan.payLoan("acct_foobar", "loan1", 1000);
+console.log(firstClientLoan.data);
+
+/*
+* Example 1 (transaction repayment):
+ *    CREATE_LOAN: acct_foobar,loan1,5000
+ *    CREATE_LOAN: acct_foobar,loan2,5000
+ *    TRANSACTION_PROCESSED: acct_foobar,loan1,500,10
+ *    TRANSACTION_PROCESSED: acct_foobar,loan2,500,1
+ * Expected Output:
+ *    acct_foobar,9945
 */
