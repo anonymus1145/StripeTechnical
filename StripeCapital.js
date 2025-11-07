@@ -109,7 +109,41 @@ class StripeCapital {
  * @param {string} loan_id
  * @param {number} amount
  */
-  createLoan(merchant_id, loan_id, amount) {
+  CREATE_LOAN(merchant_id, loan_id, amount) {
+    if (!merchant_id || merchant_id.length === 0 || typeof merchant_id !== 'string') return {}
+    if (!loan_id || loan_id.length === 0 || typeof loan_id !== 'string') return {}
+    if (!amount || amount <= 0 || typeof amount !== 'number') return {}
 
+    const loan = {
+      merchant_id,
+      loan_id,
+      amount
+    }
+
+    return loan;
   }
+
+  PAY_LOAN(merchant_id, loan_id, amount) {
+    if (!merchant_id || merchant_id.length === 0 || typeof merchant_id !== 'string') return false
+    if (!loan_id || loan_id.length === 0 || typeof loan_id !== 'string') return false
+    if (!amount || amount <= 0 || typeof amount !== 'number') return false
+
+    const payed_loan = {
+      merchant_id,
+      loan_id,
+      amount
+    }
+
+    return true;
+  }
+
+
 }
+/*
+PAY_LOAN: Merchants pays off their loans on a one-time basis.
+ * Fields
+ *    - merchant_id: The ID of the merchant. (String; non-empty)
+ *    - loan_id: The ID of loan to pay off. (String; non-empty)
+ *    - amount: The amount given back to Stripe. (Integer; x >= 0)
+ * Ex: PAY_LOAN: merchant1, loan1, 1000
+*/
