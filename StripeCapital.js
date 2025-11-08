@@ -110,11 +110,10 @@ class StripeCapital {
  * @param {boolean} _loan
  */
 
-  constructor(merchant_id, loan_id, amount, loan = false) {
+  constructor(merchant_id, amount, loans = []) {
     this.merchant_id = merchant_id,
-      this.loan_id = loan_id,
       this.amount = amount,
-      this.loan = loan
+      this.loans = loans
   }
 
   // Method for parameters check
@@ -128,23 +127,30 @@ class StripeCapital {
   get data() {
     return {
       merchant_id: this.merchant_id,
-      loan_id: this.loan_id,
       amount: this.amount,
-      loan: this.loan
+      loans: this.loans
     }
   }
 
   // Method to create a loan
-  createLoan() {
-    this.checkParams(this.merchant_id, this.loan_id, this.amount);
-    return this.loan = true;
+  createLoan(merchant_id, loan_id, amount) {
+    this.checkParams(merchant_id, loan_id, amount);
+
+    if (this.loans.length <= 0 && this.merchant_id !== merchant_id) {
+      this.merchant_id = merchant_id;
+      this.amount = amount;
+    } else {
+      this.amount = this.amount + amount;
+    }
+
+    this.loans.push(loan_id);
   }
 
   // Method to pay the loan
   payLoan(merchant_id, loan_id, amount) {
     this.checkParams(merchant_id, loan_id, amount);
 
-    if (merchant_id !== this.merchant_id || loan_id !== this.loan_id) {
+    if (merchant_id !== this.merchant_id || !this.loans.includes(loan_id)) {
       throw new Error(`The loan for ${merchant_id} is not available`);
     }
 
@@ -174,13 +180,22 @@ class StripeCapital {
     return increaseLoan;
   }
 
-  TRANSACTION_PROCESSED(merchant_id, loan_id, amount, repayment_percentage) {
-    if (!merchant_id || merchant_id.length === 0 || typeof merchant_id !== 'string') return {}
-    if (!loan_id || loan_id.length === 0 || typeof loan_id !== 'string') return {}
-    if (!amount || amount <= 0 || typeof amount !== 'number') return {}
-    if (!repayment_percentage || typeof repayment_percentage !== 'number' || repayment_percentage <= 1 || repayment_percentage >= 100) return {}
+  transactionProceesed(merchant_id, loan_id, amount, repayment_percentage) {
+    this.checkParams(merchant_id, loan_id, amount);
+    if (!repayment_percentage || typeof repayment_percentage !== 'number' || repayment_percentage <= 0 || repayment_percentage >= 100) {
+      throw new Error(`The repayment_percentage for ${loan_id} is not available`);
+    }
+
+    if (this.merchant_id !== merchant_id || !this.loans.includes(loan_id)) {
+      throw new Error(`Wrong merchant_id or loan_id`);
+    }
+
+    this.amount = this.amount - ((amount * repayment_percentage) / 100);
   }
 }
+
+
+
 /*
 * Example 0 (manual repayment):
  *    CREATE_LOAN: acct_foobar,loan1,5000
@@ -192,10 +207,12 @@ class StripeCapital {
  *    2. The merchant pays down $10.00 of the loan.
  *Result: The merchant owes Stripe $40.00.
 */
-const firstClientLoan = new StripeCapital("acct_foobar", "loan1", 5000);
-firstClientLoan.createLoan();
-firstClientLoan.payLoan("acct_foobar", "loan1", 1000);
-console.log(firstClientLoan.data);
+// const exampleO = new StripeCapital();
+// exampleO.createLoan("acct_foobar", "loan1", 5000);
+
+// exampleO.payLoan("acct_foobar", "loan1", 1000);
+// console.log(exampleO.data);
+
 
 /*
 * Example 1 (transaction repayment):
@@ -205,4 +222,33 @@ console.log(firstClientLoan.data);
  *    TRANSACTION_PROCESSED: acct_foobar,loan2,500,1
  * Expected Output:
  *    acct_foobar,9945
+
+const exampleLoan1 = new StripeCapital();
+exampleLoan1.createLoan("acct_foobar", "loan1", 5000);
+exampleLoan1.createLoan("acct_foobar", "loan2", 5000);
+
+exampleLoan1.transactionProceesed("acct_foobar", "loan1", 500, 10);
+exampleLoan1.transactionProceesed("acct_foobar", "loan2", 500, 1);
+
+console.log(exampleLoan1.data);
+*/
+
+/*
+* Example 2 (multiple actions):
+*    CREATE_LOAN: acct_foobar,loan1,1000
+*    CREATE_LOAN: acct_foobar,loan2,2000
+*    CREATE_LOAN: acct_barfoo,loan1,3000
+*    TRANSACTION_PROCESSED: acct_foobar,loan1,100,1
+*    PAY_LOAN: acct_barfoo,loan1,1000
+*    INCREASE_LOAN: acct_foobar,loan2,1000
+* Expected Output:
+*    acct_barfoo,2000
+*    acct_foobar,3999
+* Explanation:
+*    1. The merchant acct_foobar creates two loans for $30.00 in total.
+*    2. The merchant acct_barfoo creates a loan for $30.00.
+*    3. Merchant acct_foobar processes a transaction, paying off $0.01 from loan1.
+*    4. Merchant acct_barfoo manually pays back a loan for $10.00.
+*    5. Merchant acct_foobar increases its second loan by $10.00.
+*    Result: acct_barfoo owes $20.00, acct_foobar owes $39.99.
 */
