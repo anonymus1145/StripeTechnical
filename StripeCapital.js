@@ -108,12 +108,12 @@ class StripeCapital {
  * @param {string} loan_id
  * @param {number} amount
  * @param {boolean} _loan
+ * @param {Array} loans
+ * @param {Array} clients
  */
 
-  constructor(merchant_id, amount, loans = []) {
-    this.merchant_id = merchant_id,
-      this.amount = amount,
-      this.loans = loans
+  constructor() {
+    this.clients = new Map();
   }
 
   // Method for parameters check
@@ -126,9 +126,7 @@ class StripeCapital {
   // Getter to retrive the info
   get data() {
     return {
-      merchant_id: this.merchant_id,
-      amount: this.amount,
-      loans: this.loans
+      clients: this.clients
     }
   }
 
@@ -136,48 +134,61 @@ class StripeCapital {
   createLoan(merchant_id, loan_id, amount) {
     this.checkParams(merchant_id, loan_id, amount);
 
-    if (this.loans.length <= 0 && this.merchant_id !== merchant_id) {
-      this.merchant_id = merchant_id;
-      this.amount = amount;
-    } else {
-      this.amount = this.amount + amount;
+    if (!this.clients.has(merchant_id)) {
+      const newClient = {
+        loans: [loan_id],
+        clientAmount: amount
+      }
+      this.clients.set(merchant_id, newClient);
+      return;
     }
 
-    this.loans.push(loan_id);
+    const oldClient = this.clients.get(merchant_id);
+
+    if (oldClient.loans.includes(loan_id)) {
+      oldClient.clientAmount = oldClient.clientAmount + amount;
+      this.clients.set(merchant_id, oldClient);
+      return;
+    }
+
+    oldClient.loans.push(loan_id);
+    oldClient.clientAmount = oldClient.clientAmount + amount;
+    this.clients.set(merchant_id, oldClient);
   }
 
   // Method to pay the loan
   payLoan(merchant_id, loan_id, amount) {
     this.checkParams(merchant_id, loan_id, amount);
 
-    if (merchant_id !== this.merchant_id || !this.loans.includes(loan_id)) {
-      throw new Error(`The loan for ${merchant_id} is not available`);
-    }
+    const client = this.clients.get(merchant_id);
 
-    this.amount = this.amount - amount;
+    if (!client) throw new Error(`There is no loan with merchant_id: ${merchant_id}`);
 
-    if (this.amount > 0) {
-      console.info(`Loan ${loan_id} was decreased till ${this.amount}`);
+    client.clientAmount = client.clientAmount - amount;
+
+    if (client.clientAmount > 0) {
+      console.info(`Total loans where decreased till ${client.clientAmount}`);
       return;
     }
 
     console.info(`Loan ${loan_id} was paid and closed`);
-    this.loan = false;
+    client.loans = client.loans.filter(loan => loan.id !== loan_id);
+
   }
 
   // Method to increase the loan
-  INCREASE_LOAN(merchant_id, loan_id, amount) {
-    if (!merchant_id || merchant_id.length === 0 || typeof merchant_id !== 'string') return {}
-    if (!loan_id || loan_id.length === 0 || typeof loan_id !== 'string') return {}
-    if (!amount || amount <= 0 || typeof amount !== 'number') return {}
+  increaseLoan(merchant_id, loan_id, amount) {
+    this.checkParams(merchant_id, loan_id, amount);
 
-    const increaseLoan = {
-      merchant_id,
-      loan_id,
-      amount
+    const client = this.clients.get(merchant_id);
+    if (!client) throw new Error(`${merchant_id} is not a client`);
+
+    if (client.loans.includes(loan_id)) {
+      client.clientAmount += amount;
+      this.clients.set(merchant_id, client);
+    } else {
+      throw new Error(`${loan_id} is not in client account`);
     }
-
-    return increaseLoan;
   }
 
   transactionProceesed(merchant_id, loan_id, amount, repayment_percentage) {
@@ -186,52 +197,16 @@ class StripeCapital {
       throw new Error(`The repayment_percentage for ${loan_id} is not available`);
     }
 
-    if (this.merchant_id !== merchant_id || !this.loans.includes(loan_id)) {
-      throw new Error(`Wrong merchant_id or loan_id`);
-    }
+    const client = this.clients.get(merchant_id);
 
-    this.amount = this.amount - ((amount * repayment_percentage) / 100);
+    if (!client) throw new Error(`${merchant_id} is not available`);
+
+    if (client.loans.includes(loan_id)) {
+      client.clientAmount = client.clientAmount - ((amount * repayment_percentage) / 100);
+    }
   }
 }
 
-
-
-/*
-* Example 0 (manual repayment):
- *    CREATE_LOAN: acct_foobar,loan1,5000
- *    PAY_LOAN: acct_foobar,loan,1000
- * Expected Output:
- *    acct_foobar,4000
- * Explanation:
- *    1. The merchant acct_foobar creates a loan ("loan1") for $50.00.
- *    2. The merchant pays down $10.00 of the loan.
- *Result: The merchant owes Stripe $40.00.
-*/
-// const exampleO = new StripeCapital();
-// exampleO.createLoan("acct_foobar", "loan1", 5000);
-
-// exampleO.payLoan("acct_foobar", "loan1", 1000);
-// console.log(exampleO.data);
-
-
-/*
-* Example 1 (transaction repayment):
- *    CREATE_LOAN: acct_foobar,loan1,5000
- *    CREATE_LOAN: acct_foobar,loan2,5000
- *    TRANSACTION_PROCESSED: acct_foobar,loan1,500,10
- *    TRANSACTION_PROCESSED: acct_foobar,loan2,500,1
- * Expected Output:
- *    acct_foobar,9945
-
-const exampleLoan1 = new StripeCapital();
-exampleLoan1.createLoan("acct_foobar", "loan1", 5000);
-exampleLoan1.createLoan("acct_foobar", "loan2", 5000);
-
-exampleLoan1.transactionProceesed("acct_foobar", "loan1", 500, 10);
-exampleLoan1.transactionProceesed("acct_foobar", "loan2", 500, 1);
-
-console.log(exampleLoan1.data);
-*/
 
 /*
 * Example 2 (multiple actions):
@@ -252,3 +227,13 @@ console.log(exampleLoan1.data);
 *    5. Merchant acct_foobar increases its second loan by $10.00.
 *    Result: acct_barfoo owes $20.00, acct_foobar owes $39.99.
 */
+
+const stripeCapital = new StripeCapital();
+stripeCapital.createLoan("acct_foobar", "loan1", 1000);
+stripeCapital.createLoan("acct_foobar", "loan2", 2000);
+stripeCapital.createLoan("acct_barfoo", "loan1", 3000);
+stripeCapital.transactionProceesed("acct_foobar", "loan1", 100, 1);
+stripeCapital.payLoan("acct_barfoo", "loan1", 1000);
+stripeCapital.increaseLoan("acct_foobar", "loan2", 1000);
+
+console.log(stripeCapital.data);
