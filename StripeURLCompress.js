@@ -72,14 +72,9 @@ console.log(result);
 
 /*
  How it works:
-
 Splits the URL into major parts (/).
-
 Splits each major part into minor parts (.).
-
 Keeps the first (m - 1) minor parts unchanged.
-
 Compresses the rest into one token using the first letter, last letter, and count.
-
 Rebuilds and returns the full compressed URL.
  */
